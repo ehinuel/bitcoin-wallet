@@ -27,6 +27,7 @@ import org.bitcoinj.wallet.listeners.WalletCoinsReceivedEventListener;
 import org.bitcoinj.wallet.listeners.WalletCoinsSentEventListener;
 import org.bitcoinj.wallet.listeners.WalletReorganizeEventListener;
 
+import de.schildbach.wallet.Configuration;
 import de.schildbach.wallet.Constants;
 import de.schildbach.wallet.WalletApplication;
 
@@ -34,18 +35,22 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.content.SharedPreferences;
+import android.content.SharedPreferences.OnSharedPreferenceChangeListener;
 import android.os.AsyncTask;
 import android.support.v4.content.LocalBroadcastManager;
 
 /**
  * @author Andreas Schildbach
  */
-public final class WalletBalanceLiveData extends ThrottelingLiveData<Coin> {
+public final class WalletBalanceLiveData extends ThrottelingLiveData<Coin> implements OnSharedPreferenceChangeListener {
     private final LocalBroadcastManager broadcastManager;
+    private final Configuration config;
     private final Wallet wallet;
 
     public WalletBalanceLiveData(final WalletApplication application) {
         this.broadcastManager = LocalBroadcastManager.getInstance(application);
+        this.config = application.getConfiguration();
         this.wallet = application.getWallet();
     }
 
@@ -57,11 +62,13 @@ public final class WalletBalanceLiveData extends ThrottelingLiveData<Coin> {
         wallet.addChangeEventListener(Threading.SAME_THREAD, walletListener);
         broadcastManager.registerReceiver(walletChangeReceiver,
                 new IntentFilter(WalletApplication.ACTION_WALLET_REFERENCE_CHANGED));
+        config.registerOnSharedPreferenceChangeListener(this);
         load();
     }
 
     @Override
     protected void onInactive() {
+        config.unregisterOnSharedPreferenceChangeListener(this);
         broadcastManager.unregisterReceiver(walletChangeReceiver);
         wallet.removeChangeEventListener(walletListener);
         wallet.removeReorganizeEventListener(walletListener);
@@ -114,4 +121,10 @@ public final class WalletBalanceLiveData extends ThrottelingLiveData<Coin> {
             load();
         }
     };
+
+    @Override
+    public void onSharedPreferenceChanged(final SharedPreferences sharedPreferences, final String key) {
+        if (Configuration.PREFS_KEY_BTC_PRECISION.equals(key))
+            load();
+    }
 }
